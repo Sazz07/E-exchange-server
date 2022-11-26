@@ -24,6 +24,7 @@ async function run() {
         const categoriesCollection = client.db('resale').collection('category');
         const productsCollection = client.db('resale').collection('products');
         const usersCollection = client.db('resale').collection('users');
+        const ordersCollection = client.db('resale').collection('orders');
 
         app.get('/categories', async (req, res) => {
             const query = {};
@@ -38,14 +39,14 @@ async function run() {
             res.send(category);
         })
 
-        app.get('/category', async(req, res) => {
+        app.get('/category', async (req, res) => {
             const categoryName = req.query.categoryName;
             // console.log(categoryName);
             // const query = {};
             // const options = await categoriesCollection.find(query).toArray();
             // // console.log(options);
 
-            const productQuery = {categoryName: categoryName};
+            const productQuery = { categoryName: categoryName };
             const pastProduct = await productsCollection.find(productQuery).toArray();
             // console.log(pastProduct);
             // options.forEach(option => {
@@ -60,6 +61,25 @@ async function run() {
         app.post('/users', async (req, res) => {
             const user = req.body;
             const result = await usersCollection.insertOne(user);
+            res.send(result);
+        });
+
+        // orders
+        app.post('/orders', async (req, res) => {
+            const order = req.body;
+            const query = {
+                productName: order.productName,
+                email: order.email,
+                userName: order.userName
+            }
+
+            const ordered = await ordersCollection.find(query).toArray();
+
+            if (ordered.length) {
+                const message = `You have already ordered ${order.productName}`;
+                return res.send({ acknowledged: false, message });
+            }
+            const result = await ordersCollection.insertOne(order);
             res.send(result);
         })
 
