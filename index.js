@@ -18,19 +18,45 @@ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
 async function run() {
-    try{
+    try {
         // Collections
         const categoryCollection = client.db('resale').collection('categories');
+        const categoriesCollection = client.db('resale').collection('category');
+        const productsCollection = client.db('resale').collection('products');
 
         app.get('/categories', async (req, res) => {
             const query = {};
-            const categories = await categoryCollection.find(query).toArray();
+            const categories = await categoriesCollection.find(query).toArray();
             res.send(categories);
+        });
+
+        app.get('/category/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const category = await categoriesCollection.findOne(query);
+            res.send(category);
+        })
+
+        app.get('/category', async(req, res) => {
+            const categoryName = req.query.categoryName;
+            // console.log(categoryName);
+            // const query = {};
+            // const options = await categoriesCollection.find(query).toArray();
+            // // console.log(options);
+
+            const productQuery = {categoryName: categoryName};
+            const pastProduct = await productsCollection.find(productQuery).toArray();
+            // console.log(pastProduct);
+            // options.forEach(option => {
+            //     const optionBooked = pastProduct.filter(product => product.categoryName === option.categoryName)
+            //     console.log(optionBooked);
+            // });
+            res.send(pastProduct);
         })
 
 
     }
-    finally{
+    finally {
 
     }
 }
