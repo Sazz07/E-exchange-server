@@ -76,7 +76,7 @@ async function run() {
             res.send(pastProduct);
         });
 
-        app.post('/products', async(req, res) =>{
+        app.post('/products', async (req, res) => {
             const product = req.body;
             const result = await productsCollection.insertOne(product);
             res.send(result);
@@ -108,17 +108,45 @@ async function run() {
             res.send(result);
         });
 
+        app.get('/users/seller/:role', async (req, res) => {
+            const role = req.params.role;
+            console.log(role)
+            const query = { role: role }
+            if (role === "seller") {
+                const user = await usersCollection.find(query).toArray();
+                res.send(user);
+            }
+            else {
+                const user = await usersCollection.find({}).toArray();
+                res.send(user);
+            }
+        });
+
+        app.get('/users/buyer/:role', async (req, res) => {
+            const role = req.params.role;
+            console.log(role)
+            const query = { role: role };
+            if (role === "buyer") {
+                const user = await usersCollection.find(query).toArray();
+                res.send(user);
+            }
+            else {
+                const user = await usersCollection.find({}).toArray();
+                res.send(user);
+            }
+        });
+
         // orders
 
         app.get('/orders', verifyJWT, async (req, res) => {
             const email = req.query.email;
             const decodedEmail = req.decoded.email;
 
-            if(email !== decodedEmail) {
-                res.status(403).send({message: 'Forbidden Access'});
+            if (email !== decodedEmail) {
+                res.status(403).send({ message: 'Forbidden Access' });
             }
 
-            const query = {email: email};
+            const query = { email: email };
             const orders = await ordersCollection.find(query).toArray();
             res.send(orders);
         })
