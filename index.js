@@ -55,7 +55,9 @@ async function run() {
             const query = { _id: ObjectId(id) };
             const category = await categoriesCollection.findOne(query);
             res.send(category);
-        })
+        });
+
+        // product
 
         app.get('/category', async (req, res) => {
             const categoryName = req.query.categoryName;
@@ -73,6 +75,12 @@ async function run() {
             // });
             res.send(pastProduct);
         });
+
+        app.post('/products', async(req, res) =>{
+            const product = req.body;
+            const result = await productsCollection.insertOne(product);
+            res.send(result);
+        })
 
         // get jwt token
         app.get('/jwt', async (req, res) => {
