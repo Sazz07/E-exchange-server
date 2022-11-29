@@ -3,6 +3,7 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const port = process.env.PORT || 5000;
 
@@ -38,11 +39,23 @@ function verifyJWT(req, res, next) {
 async function run() {
     try {
         // Collections
-        const categoryCollection = client.db('resale').collection('categories');
         const categoriesCollection = client.db('resale').collection('category');
         const productsCollection = client.db('resale').collection('products');
         const usersCollection = client.db('resale').collection('users');
         const ordersCollection = client.db('resale').collection('orders');
+        const paymentsCollection = client.db('resale').collection('payments');
+
+        // Admin verify
+        const verifyAdmin = async (req, res, next) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const user = await usersCollection.findOne(query);
+
+            if (user?.role !== 'admin') {
+                return res.status(403).send({ message: 'Forbidden access' })
+            }
+            next();
+        };
 
         app.get('/categories', async (req, res) => {
             const query = {};
@@ -59,6 +72,20 @@ async function run() {
 
         // product
 
+        app.get('/products', async (req, res) => {
+            const query = {};
+            const products = await productsCollection.find(query).toArray();
+            res.send(products);
+        });
+
+        // advertise products
+        app.get('/advertiseproducts', async (req, res) => {
+            const query = { isAdvertised: true };
+            const advertiseproducts = await productsCollection.find(query).toArray();
+            res.send(advertiseproducts);
+        });
+
+        // category wise Product
         app.get('/category', async (req, res) => {
             const categoryName = req.query.categoryName;
             // console.log(categoryName);
@@ -76,11 +103,26 @@ async function run() {
             res.send(pastProduct);
         });
 
+        // get my product
+        app.get('/products/myproducts', async (req, res) => {
+            const email = req.query.email;
+            const query = { email };
+            const products = await productsCollection.find(query).toArray();
+            res.send(products);
+        })
+
         app.post('/products', async (req, res) => {
             const product = req.body;
             const result = await productsCollection.insertOne(product);
             res.send(result);
-        })
+        });
+        // delete product
+        app.delete('/product/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const result = await productsCollection.deleteOne(filter);
+            res.send(result);
+        });
 
         // get jwt token
         app.get('/jwt', async (req, res) => {
@@ -122,9 +164,10 @@ async function run() {
             }
         });
 
+
+
         app.get('/users/buyer/:role', async (req, res) => {
             const role = req.params.role;
-            console.log(role)
             const query = { role: role };
             if (role === "buyer") {
                 const user = await usersCollection.find(query).toArray();
@@ -134,6 +177,76 @@ async function run() {
                 const user = await usersCollection.find({}).toArray();
                 res.send(user);
             }
+        });
+
+        // app.get('/users/:role', async (req, res) => {
+        //     const role = req.params.role;
+        //     console.log(role)
+        //     const query = { role: role }
+        //     if (role === "seller") {
+        //         const user = await usersCollection.find(query).toArray();
+        //         res.send(user);
+        //     }
+        //     else if (role === "buyer") {
+        //         const user = await usersCollection.find(query).toArray();
+        //         res.send(user);
+        //     }
+        //     else {
+        //         const user = await usersCollection.find({}).toArray();
+        //         res.send(user);
+        //     }
+        // });
+
+        // check admin
+        app.get('/users/admin/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            const user = await usersCollection.findOne(query);
+            res.send({ isAdmin: user?.role === 'admin' });
+        });
+
+        // make admin
+        app.put('/users/admin/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) }
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    role: 'admin'
+                }
+            }
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+        });
+
+
+        // check seller
+        app.get('/users/sellers/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            const user = await usersCollection.findOne(query);
+            res.send({ isSeller: user?.role === 'seller' });
+        });
+        // check buyer
+        app.get('/users/buyers/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            const user = await usersCollection.findOne(query);
+            res.send({ isBuyer: user?.role === 'buyer' });
+        });
+
+        app.delete('/users/seller/:id', verifyJWT, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const result = await usersCollection.deleteOne(filter);
+            res.send(result);
+        });
+
+        app.delete('/users/buyer/:id', verifyJWT, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const result = await usersCollection.deleteOne(filter);
+            res.send(result);
         });
 
         // orders
@@ -149,7 +262,14 @@ async function run() {
             const query = { email: email };
             const orders = await ordersCollection.find(query).toArray();
             res.send(orders);
-        })
+        });
+
+        app.get('/orders/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const order = await ordersCollection.findOne(query);
+            res.send(order);
+        });
 
         app.post('/orders', async (req, res) => {
             const order = req.body;
@@ -167,7 +287,73 @@ async function run() {
             }
             const result = await ordersCollection.insertOne(order);
             res.send(result);
-        })
+        });
+
+        // payments
+        // payment-intent
+        app.post('/create-payment-intent', async (req, res) => {
+            const order = req.body;
+            const price = order.price;
+            const amount = price * 100;
+
+            const paymentIntent = await stripe.paymentIntents.create({
+                currency: 'usd',
+                amount: amount,
+                "payment_method_types": [
+                    "card"
+                ],
+            });
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
+        });
+
+        // advertise 
+        app.put('/products/advertise/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    isAdvertised: true
+                },
+            };
+            const options = { upsert: true };
+            const result = await productsCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+        });
+
+        // payment post
+        app.post('/payments', async (req, res) => {
+            const payment = req.body;
+            const result = await paymentsCollection.insertOne(payment);
+            const id = payment.orderId;
+            const filter = { _id: ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    paid: true,
+                    transactionId: payment.transactionId
+                }
+            }
+            const updatedResult = await ordersCollection.updateOne(filter, updatedDoc);
+            const productPayment = await productsCollection.updateOne(filter, updatedDoc);
+            res.send(result);
+        });
+
+
+
+        // Verify Seller
+        app.put('/products/verifySeller/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    sellerVerified: true
+                },
+            };
+            const options = { upsert: true };
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+        });
 
 
     }
