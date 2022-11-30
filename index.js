@@ -89,18 +89,8 @@ async function run() {
         // category wise Product
         app.get('/category', async (req, res) => {
             const categoryName = req.query.categoryName;
-            // console.log(categoryName);
-            // const query = {};
-            // const options = await categoriesCollection.find(query).toArray();
-            // // console.log(options);
-
             const productQuery = { categoryName: categoryName };
             const pastProduct = await productsCollection.find(productQuery).toArray();
-            // console.log(pastProduct);
-            // options.forEach(option => {
-            //     const optionBooked = pastProduct.filter(product => product.categoryName === option.categoryName)
-            //     console.log(optionBooked);
-            // });
             res.send(pastProduct);
         });
 
@@ -119,7 +109,7 @@ async function run() {
         });
 
         // delete product
-        app.delete('/product/:id', async (req, res) => {
+        app.delete('/product/:id', verifyJWT, async (req, res) => {
             const id = req.params.id;
             const filter = { _id: ObjectId(id) };
             const result = await productsCollection.deleteOne(filter);
@@ -137,7 +127,7 @@ async function run() {
                 return res.send({ accessToken: token });
             }
             res.status(403).send({ accessToken: '' });
-        })
+        });
 
         // users
         app.get('/users', async (req, res) => {
@@ -151,7 +141,6 @@ async function run() {
             const result = await usersCollection.insertOne(user);
             res.send(result);
         });
-
 
 
         app.get('/users/seller/:role', async (req, res) => {
@@ -182,23 +171,6 @@ async function run() {
             }
         });
 
-        // app.get('/users/:role', async (req, res) => {
-        //     const role = req.params.role;
-        //     console.log(role)
-        //     const query = { role: role }
-        //     if (role === "seller") {
-        //         const user = await usersCollection.find(query).toArray();
-        //         res.send(user);
-        //     }
-        //     else if (role === "buyer") {
-        //         const user = await usersCollection.find(query).toArray();
-        //         res.send(user);
-        //     }
-        //     else {
-        //         const user = await usersCollection.find({}).toArray();
-        //         res.send(user);
-        //     }
-        // });
 
         // check admin
         app.get('/users/admin/:email', async (req, res) => {
@@ -207,6 +179,11 @@ async function run() {
             const user = await usersCollection.findOne(query);
             res.send({ isAdmin: user?.role === 'admin' });
         });
+
+        app.get('/isadvertised', async (req, res) => {
+            const query = { isAdvertised };
+            const advertised = await productsCollection.find();
+        })
 
         // make admin
         app.put('/users/admin/:id', verifyJWT, async (req, res) => {
@@ -351,6 +328,13 @@ async function run() {
             res.send(result);
         });
 
+        app.delete('/wishlist/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const result = await wishListsCollection.deleteOne(filter);
+            res.send(result);
+        });
+
         // payments
         // payment-intent
         app.post('/create-payment-intent', async (req, res) => {
@@ -389,7 +373,9 @@ async function run() {
             const payment = req.body;
             const result = await paymentsCollection.insertOne(payment);
             const id = payment.orderId;
-            const filter = { _id: ObjectId(id) };
+            const filter = {
+                _id: ObjectId(id)
+            };
             const updatedDoc = {
                 $set: {
                     paid: true,
@@ -407,11 +393,6 @@ async function run() {
     }
 }
 run().catch(console.log);
-
-
-
-
-
 
 
 app.get('/', async (req, res) => {
