@@ -136,7 +136,7 @@ async function run() {
                 const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, { expiresIn: '7d' })
                 return res.send({ accessToken: token });
             }
-            res.status(403).send({ accessToken: '' })
+            res.status(403).send({ accessToken: '' });
         })
 
         // users
@@ -151,6 +151,8 @@ async function run() {
             const result = await usersCollection.insertOne(user);
             res.send(result);
         });
+
+
 
         app.get('/users/seller/:role', async (req, res) => {
             const role = req.params.role;
@@ -232,7 +234,7 @@ async function run() {
             const options = { upsert: true };
             const result = await usersCollection.updateOne(filter, updatedDoc, options);
             const product = await productsCollection.updateOne(filter, updatedDoc, options);
-            
+
             res.send(result);
         });
 
@@ -317,6 +319,19 @@ async function run() {
 
         // wishList
 
+        app.get('/wishlist', verifyJWT, async (req, res) => {
+            const email = req.query.email;
+            const decodedEmail = req.decoded.email;
+
+            if (email !== decodedEmail) {
+                res.status(403).send({ message: 'Forbidden Access' });
+            }
+
+            const query = { email: email };
+            const wishlist = await wishListsCollection.find(query).toArray();
+            res.send(wishlist);
+        })
+
         app.post('/wishlist', verifyJWT, async (req, res) => {
             const wishlist = req.body;
             const query = {
@@ -327,9 +342,9 @@ async function run() {
 
             const wishlisted = await wishListsCollection.find(query).toArray();
 
-            if (wishlisted.length){
+            if (wishlisted.length) {
                 const message = `${wishlist.productName} is already added to wishlist`;
-                return res.send({acknowledged: false, message});
+                return res.send({ acknowledged: false, message });
             }
 
             const result = await wishListsCollection.insertOne(wishlist);
