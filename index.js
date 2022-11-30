@@ -44,6 +44,7 @@ async function run() {
         const usersCollection = client.db('resale').collection('users');
         const ordersCollection = client.db('resale').collection('orders');
         const paymentsCollection = client.db('resale').collection('payments');
+        const wishListsCollection = client.db('resale').collection('wishList');
 
         // Admin verify
         const verifyAdmin = async (req, res, next) => {
@@ -111,11 +112,12 @@ async function run() {
             res.send(products);
         })
 
-        app.post('/products', async (req, res) => {
+        app.post('/products', verifyJWT, async (req, res) => {
             const product = req.body;
             const result = await productsCollection.insertOne(product);
             res.send(result);
         });
+
         // delete product
         app.delete('/product/:id', async (req, res) => {
             const id = req.params.id;
@@ -152,7 +154,6 @@ async function run() {
 
         app.get('/users/seller/:role', async (req, res) => {
             const role = req.params.role;
-            console.log(role)
             const query = { role: role }
             if (role === "seller") {
                 const user = await usersCollection.find(query).toArray();
@@ -219,6 +220,21 @@ async function run() {
             res.send(result);
         });
 
+        // make Verify Seller.
+        app.put('/products/verifySeller/:email', async (req, res) => {
+            const email = req.params.email;
+            const filter = { email };
+            const updatedDoc = {
+                $set: {
+                    verify: 'verified'
+                },
+            };
+            const options = { upsert: true };
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
+            const product = await productsCollection.updateOne(filter, updatedDoc, options);
+            
+            res.send(result);
+        });
 
         // check seller
         app.get('/users/sellers/:email', async (req, res) => {
@@ -227,6 +243,16 @@ async function run() {
             const user = await usersCollection.findOne(query);
             res.send({ isSeller: user?.role === 'seller' });
         });
+
+        // check verify Seller
+
+        app.get('/users/verify/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            const user = await usersCollection.findOne(query);
+            res.send({ isVerify: user?.verify === 'verified' });
+        });
+
         // check buyer
         app.get('/users/buyers/:email', async (req, res) => {
             const email = req.params.email;
@@ -271,7 +297,7 @@ async function run() {
             res.send(order);
         });
 
-        app.post('/orders', async (req, res) => {
+        app.post('/orders', verifyJWT, async (req, res) => {
             const order = req.body;
             const query = {
                 productName: order.productName,
@@ -286,6 +312,27 @@ async function run() {
                 return res.send({ acknowledged: false, message });
             }
             const result = await ordersCollection.insertOne(order);
+            res.send(result);
+        });
+
+        // wishList
+
+        app.post('/wishlist', verifyJWT, async (req, res) => {
+            const wishlist = req.body;
+            const query = {
+                productName: wishlist.productName,
+                email: wishlist.email,
+                userName: wishlist.userName
+            }
+
+            const wishlisted = await wishListsCollection.find(query).toArray();
+
+            if (wishlisted.length){
+                const message = `${wishlist.productName} is already added to wishlist`;
+                return res.send({acknowledged: false, message});
+            }
+
+            const result = await wishListsCollection.insertOne(wishlist);
             res.send(result);
         });
 
@@ -338,23 +385,6 @@ async function run() {
             const productPayment = await productsCollection.updateOne(filter, updatedDoc);
             res.send(result);
         });
-
-
-
-        // Verify Seller
-        app.put('/products/verifySeller/:id', async (req, res) => {
-            const id = req.params.id;
-            const filter = { _id: ObjectId(id) };
-            const updatedDoc = {
-                $set: {
-                    sellerVerified: true
-                },
-            };
-            const options = { upsert: true };
-            const result = await usersCollection.updateOne(filter, updatedDoc, options);
-            res.send(result);
-        });
-
 
     }
     finally {
